@@ -1,0 +1,48 @@
+name: Corregir rutas de audio y video
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/corregir-medios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  reparar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Actualizar las rutas al audio y video existentes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("index.html")
+          html = path.read_text(encoding="utf-8")
+          swaps = {
+            'assets/dedicatoria-solo-audio.m4a': 'dedicatoria-solo-audio.mp3',
+            'assets/dedicatoria-video-1080p.mp4': 'Dedicatoria%20Video%201080p.mp4',
+          }
+          for before, after in swaps.items():
+              if before not in html and after not in html:
+                  raise SystemExit(f"No se encontró la ruta original ni la corregida: {before}")
+              html = html.replace(before, after)
+          path.write_text(html, encoding="utf-8")
+          print("Rutas de la dedicatoria verificadas.")
+          PY
+      - name: Publicar corrección
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "Las rutas ya estaban corregidas."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Corregir enlaces de audio y video para GitHub Pages"
+          git push
