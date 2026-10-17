@@ -1,0 +1,60 @@
+name: Activar estadísticas de la página de Majo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/activar-estadisticas-majo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  instalar-contador:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar la página existente
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Insertar el contador invisible sin modificar el diseño
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("index.html")
+          html = path.read_text(encoding="utf-8")
+          script = ('<script data-goatcounter="https://majo-estrellas.goatcounter.com/count" '
+                    'async src="https://gc.zgo.at/count.js"></script>')
+
+          if 'data-goatcounter="https://majo-estrellas.goatcounter.com/count"' in html:
+              print("El contador ya está instalado; no se requieren cambios.")
+          else:
+              if re.search(r'data-goatcounter\s*=', html, re.I):
+                  raise SystemExit("Ya hay otro contador GoatCounter. Revisarlo antes de agregar uno nuevo.")
+
+              closing = re.search(r'</head\s*>', html, re.I)
+              if closing is None:
+                  closing = re.search(r'</body\s*>', html, re.I)
+              if closing is None:
+                  raise SystemExit("No se encontró el cierre HEAD o BODY; no se modificó la página.")
+
+              html = html[:closing.start()] + '\n' + script + '\n' + html[closing.start():]
+              path.write_text(html, encoding="utf-8")
+              print("Contador GoatCounter incorporado sin alterar el contenido previo.")
+          PY
+      - name: Guardar la actualización en GitHub Pages
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "El contador ya está instalado."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Activar estadísticas privadas de visitas a Majo"
+          git push
